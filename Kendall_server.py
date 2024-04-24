@@ -1,5 +1,4 @@
 
-import mesa
 from agent.kendall_agents import *
 from model.kendall_model import Kendall
 from shapely.geometry import mapping
@@ -7,14 +6,13 @@ from flask import Flask,jsonify,request
 from flask_cors import CORS
 import os,sys
 from util import CacheData
-import time
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(dir_path)
 
 app = Flask(__name__)
 CORS(app)
-
+ 
 #Agent property
 def get_agent_property(agent):
     properties = {}
@@ -65,12 +63,14 @@ def get_render_data(model,properties_method=None):
                     'time' : '{:02d}:{:02d}'.format(model.hour,model.minute),
                     }
 
+#Init Model
 model_params ={
     "building_file": os.path.join(dir_path,'data/kendall_buildings.json'),
     "road_file": os.path.join(dir_path,"data/kendall_roads.shp"),
     "population": 1000,
     "crs" : "epsg:4326",
     }
+
 model = Kendall(**model_params)
 print("Model loaded")
 init_step = model.step_count
@@ -79,6 +79,7 @@ cacha_database = CacheData(capacity=60*24)
 cacha_database.clear_cache_data()
 cacha_database.add_cache_data(init_step,init_render)
 
+#APIs
 @app.route('/init')
 def run():
     _init_step,_init_data = cacha_database.get_oldest_data()
@@ -113,7 +114,6 @@ def reset(model_params=model_params):
     model = Kendall(**model_params_)
     cacha_database.clear_cache_data()
     cacha_database.add_cache_data(init_step,init_render)
-    print("Model reset")
     return jsonify(init_render)
 
 if __name__ == '__main__':

@@ -11,6 +11,9 @@ from schedule import ParallelActivation
 from space import RoadNetwork,CommuteSpace
 from model import DataCollector
 from itertools import groupby
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import as_completed
+
 
 class Kendall(mesa.Model):
     def __init__(self,
@@ -50,6 +53,15 @@ class Kendall(mesa.Model):
     def set_space_and_schedule(self):
         self.space = CommuteSpace(crs=self.crs,warn_crs_conversion=False)
         self.schedule = ParallelActivation(self)
+
+    def create_agent(self, potential_house_, potential_office_):
+        house = random.choices(potential_house_, weights=[x.area for x in potential_house_], k=10)[0]
+        office = random.choices(potential_office_, weights=[x.area for x in potential_office_], k=10)[0]
+        resident = Resident(self.next_id(), self, None, self.crs, render=True)
+        resident.set_house(house)
+        resident.set_office(office)
+        resident.prepare_to_move()
+        return resident
     
     def init_agents(self):
         #floors
@@ -66,16 +78,25 @@ class Kendall(mesa.Model):
         potential_house_ = [x for x in self.floors if x.Category in ["Residential","Mixed Use Residential"]]
         potential_office_ = [x for x in self.floors if x.Category not in ["Residential","Mixed Use Residential"]]
         #residents
-        for j in tqdm(range(self.population),"create residents"):
-            house = random.choices(potential_house_, weights=[x.area for x in potential_house_], k=10)[0]
-            office = random.choices(potential_office_, weights=[x.area for x in potential_office_], k=10)[0]
-            resident = Resident(self.next_id(), self, None, self.crs, render=True)
-            resident.set_house(house)
-            resident.set_office(office)
-            resident.prepare_to_move()
-            self.residents.append(resident)
-            self.schedule.add(resident) 
-            self.space.add_commuter(resident)
+        with ThreadPoolExecutor() as executor:
+            futures = [executor.submit(self.create_agent, potential_house_, potential_office_) for _ in range(self.population)]
+            for future in tqdm(as_completed(futures),total=len(futures),desc="create residents"):
+                    self.residents.append(future.result())
+                    self.schedule.add(future.result()) 
+                    self.space.add_commuter(future.result())
+        # for j in tqdm(range(self.population),"create residents"):
+        #     self.create_agent(potential_house_, potential_office_)
+            # house = random.choices(potential_house_, weights=[x.area for x in potential_house_], k=10)[0]
+            # office = random.choices(potential_office_, weights=[x.area for x in potential_office_], k=10)[0]
+            # house = random.choice(potential_house_)
+            # office = random.choice(potential_office_)
+            # resident = Resident(self.next_id(), self, None, self.crs, render=True)
+            # resident.set_house(house)
+            # resident.set_office(office)
+            # resident.prepare_to_move()
+            # self.residents.append(resident)
+            # self.schedule.add(resident) 
+            # self.space.add_commuter(resident)
 
     #load agents from gis files
     def _load_from_file(self, key:str, file:str, agent_class:mg.GeoAgent, id_key:str="index"):
