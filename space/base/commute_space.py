@@ -94,7 +94,7 @@ class RoadNetwork:
 
     def get_cached_path(
         self, source: FloatCoordinate, target: FloatCoordinate
-    ) -> List[FloatCoordinate] | None:
+    ) -> List[FloatCoordinate]:
         return self._path_select_cache.get((source, target), None)
 
 
